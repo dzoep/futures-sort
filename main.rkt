@@ -23,7 +23,7 @@
 
  (parameter-doc
   futures-sort-parallel-depth
-  (parameter/c exact-positive-integer?)
+  (parameter/c exact-nonnegative-integer?)
   depth
   @{
     
@@ -40,7 +40,7 @@
   vector-futures-sort!
   (->i ((unsorted vector?))
        ((compare procedure?))
-       (res vector?))
+       (res void?))
   ((λ (a b) (< a b)))
   @{
 
@@ -68,7 +68,7 @@
        ((compare procedure?)
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
-       (res vector?))
+       (res void?))
   ((λ (a b) (< a b)) #f 0.1)
   @{
 
@@ -83,7 +83,7 @@
   fxvector-futures-sort!
   (->i ((unsorted fxvector?))
        ((compare procedure?))
-       (res fxvector?))
+       (res void?))
   ((λ (a b) (unsafe-fx< a b)))
   @{
 
@@ -97,7 +97,7 @@
        ((compare procedure?)
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
-       (res vector?))
+       (res void?))
   ((λ (a b) (unsafe-fx< a b)) #f 0.1)
   @{
 
