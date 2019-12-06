@@ -39,7 +39,7 @@
  (proc-doc
   vector-futures-sort!
   (->i ((unsorted vector?))
-       ((compare procedure?))
+       ((less-than? (any/c any/c . -> . any/c)))
        (res void?))
   ((λ (a b) (< a b)))
   @{
@@ -63,9 +63,23 @@
     })
 
  (proc-doc
+  vector-futures-sort
+  (->i ((unsorted vector?))
+       ((less-than? (any/c any/c . -> . any/c)))
+       (res vector?))
+  ((λ (a b) (< a b)))
+  @{
+
+    Sorts @racket[vector?] like @racket[vector-futures-sort!] without
+    modifying the original unsorted vector and allocating a fresh vector
+    for the result.
+
+    })
+
+ (proc-doc
   vector-futures-sort!/progress
   (->i ((unsorted vector?))
-       ((compare procedure?)
+       ((less-than? (any/c any/c . -> . any/c))
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
        (res void?))
@@ -80,9 +94,25 @@
     })
 
  (proc-doc
+  vector-futures-sort/progress
+  (->i ((unsorted vector?))
+       ((less-than? (any/c any/c . -> . any/c))
+        #:progress-proc (progress-proc (or/c procedure? false?))
+        #:progress-sleep (progress-sleep positive?))
+       (res void?))
+  ((λ (a b) (< a b)) #f 0.1)
+  @{
+
+    Sorts @racket[vector?] like @racket[vector-futures-sort!/progress]
+    without modifying the original unsorted vector and allocating a fresh
+    vector for the result.
+
+    })
+
+ (proc-doc
   fxvector-futures-sort!
   (->i ((unsorted fxvector?))
-       ((compare procedure?))
+       ((less-than? (any/c any/c . -> . any/c)))
        (res void?))
   ((λ (a b) (unsafe-fx< a b)))
   @{
@@ -92,9 +122,23 @@
     })
 
  (proc-doc
+  fxvector-futures-sort
+  (->i ((unsorted fxvector?))
+       ((less-than? (any/c any/c . -> . any/c)))
+       (res fxvector?))
+  ((λ (a b) (< a b)))
+  @{
+
+    Sorts @racket[fxvector?] like @racket[fxvector-futures-sort!]
+    without modifying the original unsorted fxvector and allocating a
+    fresh fxvector for the result.
+
+    })
+
+ (proc-doc
   fxvector-futures-sort!/progress
   (->i ((unsorted fxvector?))
-       ((compare procedure?)
+       ((less-than? (any/c any/c . -> . any/c))
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
        (res void?))
@@ -102,6 +146,23 @@
   @{
 
     Like @racket[vector-futures-sort!/progress] but for @racket[fxvector?].
+
+    })
+
+ (proc-doc
+  fxvector-futures-sort/progress
+  (->i ((unsorted fxvector?))
+       ((less-than? (any/c any/c . -> . any/c))
+        #:progress-proc (progress-proc (or/c procedure? false?))
+        #:progress-sleep (progress-sleep positive?))
+       (res fxvector?))
+  ((λ (a b) (unsafe-fx< a b)) #f 0.1)
+  @{
+
+    Sorts @racket[fxvector?] like
+    @racket[fxvector-futures-sort!/progress] without modifying the
+    original unsorted fxvector and allocating a fresh fxvector for the
+    result.
 
     })
  )
@@ -114,20 +175,50 @@
   (syntax-parse stx
     ((_
       (~optional (~seq (~and #:progress progress-kw)))
+      (~optional (~seq (~and #:create create-kw)))
       type
       default-compare)
      (with-syntax* ((gen-progress (attribute progress-kw))
+                    (gen-create (attribute create-kw))
                     (proc-name (datum->syntax
                                 stx
                                 (string->symbol
                                  (string-append
                                   (symbol->string (syntax->datum #'type))
-                                  "-futures-sort!"
+                                  "-futures-sort"
+                                  (if (syntax->datum #'gen-create)
+                                      ""
+                                      "!")
                                   (if (syntax->datum #'gen-progress)
                                       "/progress"
                                       "")
                                   ))
-                                )))
+                                ))
+                    (type-set! (datum->syntax
+                                stx
+                                (string->symbol
+                                 (string-append
+                                  (symbol->string (syntax->datum #'type))
+                                  "-set!"))))
+                    (type-ref (datum->syntax
+                               stx
+                               (string->symbol
+                                (string-append
+                                 (symbol->string (syntax->datum #'type))
+                                 "-ref"))))
+                    (type-length (datum->syntax
+                                  stx
+                                  (string->symbol
+                                   (string-append
+                                    (symbol->string (syntax->datum #'type))
+                                    "-length"))))
+                    (make-type (datum->syntax
+                                stx
+                                (string->symbol
+                                 (string-append
+                                  "make-"
+                                  (symbol->string (syntax->datum #'type))))))
+                    )
        #`(define (proc-name
                   unsorted
                   (compare default-compare)
@@ -136,34 +227,15 @@
                             #:progress-sleep (progress-sleep 0.1))
                          '())
                   )
-           ; Check arguments
-           (when (not (#,(datum->syntax
-                          stx
-                          (string->symbol
-                           (string-append
-                            (symbol->string (syntax->datum #'type))
-                            "?")))
-                       unsorted))
-             (error (string-append "Argument `unsorted' must be "
-                                   (symbol->string (quote type)))))
-           
-           ; Get and check the length and create scratchpad
-           (define unsorted-length (#,(datum->syntax
-                                       stx
-                                       (string->symbol
-                                        (string-append
-                                         (symbol->string (syntax->datum #'type))
-                                         "-length")))
-                                    unsorted))
-           (when (not (fixnum? unsorted-length))
-             (error (string-append "Argument `unsorted' is too long!")))
-           (define scratchpad (#,(datum->syntax
-                                  stx
-                                  (string->symbol
-                                   (string-append
-                                    "make-"
-                                    (symbol->string (syntax->datum #'type)))))
-                               unsorted-length))
+           ; Get the length and create scratchpad
+           (define unsorted-length (type-length unsorted))
+           (define scratchpad (make-type unsorted-length))
+
+           ; Alias or create result
+           (define result
+             #,(if (syntax->datum #'gen-create)
+                   #'(make-type unsorted-length)
+                   #'unsorted))
 
            ; Calculate total number of futures with current parallelism setting
            (define futures-depth (futures-sort-parallel-depth))
@@ -213,27 +285,13 @@
                      )
                   '())
 
-           ; Alias accessors
-           (define type-set! #,(datum->syntax
-                                stx
-                                (string->symbol
-                                 (string-append
-                                  (symbol->string (syntax->datum #'type))
-                                  "-set!"))))
-           (define type-ref #,(datum->syntax
-                               stx
-                               (string->symbol
-                                (string-append
-                                 (symbol->string (syntax->datum #'type))
-                                 "-ref"))))
-
            ; Generic merge stage
            (define (merge! from1 to1/from2 to2 depth fid)
              #,(when (syntax->datum #'gen-progress)
                  #'(when progress-proc
                      (fxvector-set! progresses fid (fx+ (fxvector-ref progresses fid) 1))))
-             (define src (if (fx= (fxand depth 1) 1) unsorted scratchpad))
-             (define dst (if (fx= (fxand depth 1) 1) scratchpad unsorted))
+             (define src (if (fx= (fxand depth 1) 1) result scratchpad))
+             (define dst (if (fx= (fxand depth 1) 1) scratchpad result))
              (let loop1 ((i from1)
                          (j to1/from2)
                          (k from1))
@@ -275,29 +333,24 @@
                     ; >2 means we do a proper split/merge
                     ; this is the only part to leverage futures
                     (define cnt2 (fxrshift cnt 1))
-                    (define from1 from)
                     (define to1/from2 (fx+ from cnt2))
                     (define to2 to)
                     (cond ((fx< depth futures-depth)
                            (let ((f1 (future
                                       (λ ()
-                                        (sort-step from1 to1/from2
+                                        (sort-step from to1/from2
                                                    (fx+ depth 1)
                                                    fid)
-                                        #f)))
-                                 (f2 (future
-                                      (λ ()
-                                        (sort-step to1/from2 to2
-                                                   (fx+ depth 1)
-                                                   (fxior fid (fxlshift 1 depth)))
-                                        #f))))
-                             (or (touch f1)
-                                 (touch f2))))
+                                        (void)))))
+                             (sort-step to1/from2 to2
+                                        (fx+ depth 1)
+                                        (fxior fid (fxlshift 1 depth)))
+                             (touch f1)))
                           (else
-                           (sort-step from1 to1/from2 (fx+ depth 1) fid)
+                           (sort-step from to1/from2 (fx+ depth 1) fid)
                            (sort-step to1/from2 to2 (fx+ depth 1) fid)
                            ))
-                    (merge! from1 to1/from2 to2 depth fid))
+                    (merge! from to1/from2 to2 depth fid))
                    ((fx= cnt 2)
                     #,(when (syntax->datum #'gen-progress)
                         #'(when progress-proc
@@ -306,7 +359,7 @@
                     ; =2 - swap in-place or from the other
                     (define v1 (type-ref unsorted from))
                     (define v2 (type-ref unsorted (fx+ from 1)))
-                    (define dst (if (fx= (fxand depth 1) 1) scratchpad unsorted))
+                    (define dst (if (fx= (fxand depth 1) 1) scratchpad result))
                     (define v1first (compare v1 v2))
                     (type-set! dst
                                from
@@ -315,9 +368,16 @@
                                (fx+ from 1)
                                (if v1first v2 v1)))
                    ((fx= cnt 1)
-                    ; =1 - only copy if it must go to scratchpad
-                    (when (fx= (fxand depth 1) 1)
-                      (type-set! scratchpad from (type-ref unsorted from))))
+                    #,(if (syntax->datum #'gen-create)
+                          ; =1 - always copy
+                          #'(type-set! (if (fx= (fxand depth 1) 1)
+                                           scratchpad
+                                           result)
+                                       from
+                                       (type-ref unsorted from))
+                          ; =1 - only copy if it must go to scratchpad
+                          #'(when (fx= (fxand depth 1) 1)
+                              (type-set! scratchpad from (type-ref unsorted from)))))
                    ))
 
            ; Start
@@ -329,8 +389,11 @@
                #'(when progress-proc
                    (progress-stop)))
 
-           ; Return void - as sort-vector! does
-           (void))))))
+           #,(if (syntax->datum #'gen-create)
+                 ; Return the newly created (fx)vector
+                 #'result
+                 ; Return void - as sort-vector! does
+                 #'(void)))))))
 
 ; fxvector-futures-sort!
 (generate-type-futures-sorts fxvector (λ (a b) (fx< a b)))
@@ -344,9 +407,131 @@
 ; vector-futures-sort!/progress
 (generate-type-futures-sorts #:progress vector (λ (a b) (< a b)))
 
-(module+ test
-  ;; Any code in this `test` submodule runs when this file is run using DrRacket
-  ;; or with `raco test`. The code here does not run when this file is
-  ;; required by another module.
+; fxvector-futures-sort
+(generate-type-futures-sorts #:create fxvector (λ (a b) (fx< a b)))
 
-  (check-equal? (+ 2 2) 4))
+; vector-futures-sort
+(generate-type-futures-sorts #:create vector (λ (a b) (< a b)))
+
+; fxvector-futures-sort/progress
+(generate-type-futures-sorts #:progress #:create fxvector (λ (a b) (fx< a b)))
+
+; vector-futures-sort/progress
+(generate-type-futures-sorts #:progress #:create vector (λ (a b) (< a b)))
+
+(module+ test
+
+  (define test-random-seed 4)  ; chosen by fair dice roll.
+  (define test-sample-size 100)
+  (define test-max-number 1000000)
+  
+
+  (random-seed test-random-seed)
+  (define random-vector (for/vector ((i test-sample-size)) (random test-max-number)))
+  (define sorted-vector (vector-sort random-vector <))
+
+  (let ((random-vector-copy (vector-copy random-vector)))
+    (vector-futures-sort! random-vector-copy)
+    (check-equal? random-vector-copy sorted-vector
+                  "vector-futures-sort!"))
+
+  (let ((random-vector-copy (vector-copy random-vector)))
+    (check-equal? (vector-futures-sort random-vector-copy) sorted-vector
+                  "vector-futures-sort result")
+    (check-equal? random-vector-copy random-vector
+                  "vector-futures-sort argument"))
+
+  (let ((random-vector-copy (vector-copy random-vector)))
+    (define last-current #f)
+    (define last-total #f)
+    (vector-futures-sort!/progress random-vector-copy
+                                   #:progress-proc (λ (current total)
+                                                     (set! last-current current)
+                                                     (set! last-total total)))
+    (check-equal? random-vector-copy sorted-vector
+                  "vector-futures-sort!/progress result")
+    (check-not-equal? last-current #f
+                      "vector-futures-sort!/progress progress-proc current value")
+    (check-equal? last-total (sub1 (vector-length random-vector))
+                  "vector-futures-sort!/progress progress-proc total value"))
+
+  (let ((random-vector-copy (vector-copy random-vector)))
+    (define last-current #f)
+    (define last-total #f)
+    (define result
+      (vector-futures-sort/progress random-vector-copy
+                                    #:progress-proc (λ (current total)
+                                                      (set! last-current current)
+                                                      (set! last-total total))))
+    (check-equal? result sorted-vector
+                  "vector-futures-sort/progress result")
+    (check-equal? random-vector-copy random-vector
+                  "vector-futures-sort/progress argument")
+    (check-not-equal? last-current #f
+                      "vector-futures-sort/progress progress-proc current value")
+    (check-equal? last-total (sub1 (vector-length random-vector))
+                  "vector-futures-sort/progress progress-proc total value"))
+
+
+  (define random-fxvector (make-fxvector test-sample-size))
+  (for ((i test-sample-size))
+    (fxvector-set! random-fxvector i
+                   (vector-ref random-vector i)))
+  (define sorted-fxvector (make-fxvector test-sample-size))
+  (for ((i test-sample-size))
+    (fxvector-set! sorted-fxvector i
+                   (vector-ref sorted-vector i)))
+
+
+  (define (fxvector-copy fxv)
+    (define fxv-length (fxvector-length fxv))
+    (define result (make-fxvector fxv-length))
+    (for ((i fxv-length))
+      (fxvector-set! result i
+                     (fxvector-ref fxv i)))
+    result)
+  
+
+  (let ((random-fxvector-copy (fxvector-copy random-fxvector)))
+    (fxvector-futures-sort! random-fxvector-copy)
+    (check-equal? random-fxvector-copy sorted-fxvector
+                  "fxvector-futures-sort!"))
+
+  (let ((random-fxvector-copy (fxvector-copy random-fxvector)))
+    (check-equal? (fxvector-futures-sort random-fxvector-copy) sorted-fxvector
+                  "fxvector-futures-sort result")
+    (check-equal? random-fxvector-copy random-fxvector
+                  "fxvector-futures-sort argument"))
+
+  (let ((random-fxvector-copy (fxvector-copy random-fxvector)))
+    (define last-current #f)
+    (define last-total #f)
+    (fxvector-futures-sort!/progress random-fxvector-copy
+                                     #:progress-proc (λ (current total)
+                                                       (set! last-current current)
+                                                       (set! last-total total)))
+    (check-equal? random-fxvector-copy sorted-fxvector
+                  "fxvector-futures-sort!/progress result")
+    (check-not-equal? last-current #f
+                      "fxvector-futures-sort!/progress progress-proc current value")
+    (check-equal? last-total (sub1 (fxvector-length random-fxvector))
+                  "fxvector-futures-sort!/progress progress-proc total value"))
+
+  (let ((random-fxvector-copy (fxvector-copy random-fxvector)))
+    (define last-current #f)
+    (define last-total #f)
+    (define result
+      (fxvector-futures-sort/progress random-fxvector-copy
+                                      #:progress-proc (λ (current total)
+                                                        (set! last-current current)
+                                                        (set! last-total total))))
+    (check-equal? result sorted-fxvector
+                  "fxvector-futures-sort/progress result")
+    (check-equal? random-fxvector-copy random-fxvector
+                  "fxvector-futures-sort/progress argument")
+    (check-not-equal? last-current #f
+                      "fxvector-futures-sort/progress progress-proc current value")
+    (check-equal? last-total (sub1 (fxvector-length random-fxvector))
+                  "fxvector-futures-sort/progress progress-proc total value"))
+  
+  )
