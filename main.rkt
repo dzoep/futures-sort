@@ -8,7 +8,9 @@
                      syntax/parse)
          racket/require
          (filtered-in
-          (λ (name) (regexp-replace #rx"unsafe-" name ""))
+          (λ (name)
+            (and (regexp-match #rx"^unsafe-fx" name)
+                 (regexp-replace #rx"unsafe-" name "")))
           racket/unsafe/ops)
          (only-in
           racket/fixnum
@@ -39,9 +41,16 @@
  (proc-doc
   vector-futures-sort!
   (->i ((unsorted vector?))
-       ((less-than? (any/c any/c . -> . any/c)))
+       ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c)))
        (res void?))
-  ((λ (a b) (< a b)))
+  ((λ (a b) (< a b))
+   0
+   (vector-length unsorted)
+   (λ (x) x)
+   )
   @{
 
     Sorts @racket[vector?] in place.
@@ -65,9 +74,16 @@
  (proc-doc
   vector-futures-sort
   (->i ((unsorted vector?))
-       ((less-than? (any/c any/c . -> . any/c)))
+       ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c)))
        (res vector?))
-  ((λ (a b) (< a b)))
+  ((λ (a b) (< a b))
+   0
+   (vector-length unsorted)
+   (λ (x) x)
+   )
   @{
 
     Sorts @racket[vector?] like @racket[vector-futures-sort!] without
@@ -80,10 +96,19 @@
   vector-futures-sort!/progress
   (->i ((unsorted vector?))
        ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c))
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
        (res void?))
-  ((λ (a b) (< a b)) #f 0.1)
+  ((λ (a b) (< a b))
+   0
+   (vector-length unsorted)
+   (λ (x) x)
+   #f
+   0.1
+   )
   @{
 
     Like @racket[vector-futures-sort!].
@@ -97,10 +122,19 @@
   vector-futures-sort/progress
   (->i ((unsorted vector?))
        ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c))
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
        (res void?))
-  ((λ (a b) (< a b)) #f 0.1)
+  ((λ (a b) (< a b))
+   0
+   (vector-length unsorted)
+   (λ (x) x)
+   #f
+   0.1
+   )
   @{
 
     Sorts @racket[vector?] like @racket[vector-futures-sort!/progress]
@@ -112,9 +146,15 @@
  (proc-doc
   fxvector-futures-sort!
   (->i ((unsorted fxvector?))
-       ((less-than? (any/c any/c . -> . any/c)))
+       ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c)))
        (res void?))
-  ((λ (a b) (unsafe-fx< a b)))
+  ((λ (a b) (unsafe-fx< a b))
+   0
+   (fxvector-length unsorted)
+   (λ (x) x))
   @{
 
     Like @racket[vector-futures-sort!] but for @racket[fxvector?].
@@ -124,9 +164,15 @@
  (proc-doc
   fxvector-futures-sort
   (->i ((unsorted fxvector?))
-       ((less-than? (any/c any/c . -> . any/c)))
+       ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c)))
        (res fxvector?))
-  ((λ (a b) (< a b)))
+  ((λ (a b) (< a b))
+   0
+   (fxvector-length unsorted)
+   (λ (x) x))
   @{
 
     Sorts @racket[fxvector?] like @racket[fxvector-futures-sort!]
@@ -139,10 +185,19 @@
   fxvector-futures-sort!/progress
   (->i ((unsorted fxvector?))
        ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c))
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
        (res void?))
-  ((λ (a b) (unsafe-fx< a b)) #f 0.1)
+  ((λ (a b) (unsafe-fx< a b))
+   0
+   (fxvector-length unsorted)
+   (λ (x) x)
+   #f
+   0.1
+   )
   @{
 
     Like @racket[vector-futures-sort!/progress] but for @racket[fxvector?].
@@ -153,10 +208,19 @@
   fxvector-futures-sort/progress
   (->i ((unsorted fxvector?))
        ((less-than? (any/c any/c . -> . any/c))
+        (start exact-nonnegative-integer?)
+        (end exact-nonnegative-integer?)
+        #:key (key (any/c . -> . any/c))
         #:progress-proc (progress-proc (or/c procedure? false?))
         #:progress-sleep (progress-sleep positive?))
        (res fxvector?))
-  ((λ (a b) (unsafe-fx< a b)) #f 0.1)
+  ((λ (a b) (unsafe-fx< a b))
+   0
+   (fxvector-length unsorted)
+   (λ (x) x)
+   #f
+   0.1
+   )
   @{
 
     Sorts @racket[fxvector?] like
@@ -222,6 +286,9 @@
        #`(define (proc-name
                   unsorted
                   (compare default-compare)
+                  (start 0)
+                  (end #f)
+                  #:key (key (λ (x) x))
                   #,@(if (syntax->datum #'gen-progress)
                          #'(#:progress-proc (progress-proc #f)
                             #:progress-sleep (progress-sleep 0.1))
@@ -302,7 +369,8 @@
                   (define v1 (type-ref src i))
                   (define v2 (type-ref src j))
                   (cond
-                    ((compare v1 v2)
+                    ((compare (key v1)
+                              (key v2))
                      (type-set! dst k v1)
                      (loop1 (fx+ i 1) j (fx+ k 1)))
                     (else
@@ -310,21 +378,19 @@
                      (loop1 i (fx+ j 1) (fx+ k 1)))))
                  (else
                   (let loop2 ((i i)
-                              (j j)
                               (k k))
                     ; Finish from the first part
                     (cond
                       ((fx< i to1/from2)
                        (type-set! dst k (type-ref src i))
-                       (loop2 (fx+ i 1) j (fx+ k 1)))
+                       (loop2 (fx+ i 1) (fx+ k 1)))
                       (else
-                       (let loop3 ((i i)
-                                   (j j)
+                       (let loop3 ((j j)
                                    (k k))
                          ; Finish from the second part
                          (when (fx< j to2)
                            (type-set! dst k (type-ref src j))
-                           (loop3 i (fx+ j 1) (fx+ k 1)))))))))))
+                           (loop3 (fx+ j 1) (fx+ k 1)))))))))))
 
            ; Splitting part
            (define (sort-step from to (depth 0) (fid 0))
@@ -360,7 +426,8 @@
                     (define v1 (type-ref unsorted from))
                     (define v2 (type-ref unsorted (fx+ from 1)))
                     (define dst (if (fx= (fxand depth 1) 1) scratchpad result))
-                    (define v1first (compare v1 v2))
+                    (define v1first (compare (key v1)
+                                             (key v2)))
                     (type-set! dst
                                from
                                (if v1first v1 v2))
@@ -381,7 +448,8 @@
                    ))
 
            ; Start
-           (sort-step 0 unsorted-length)
+           (sort-step start
+                      (or end unsorted-length))
 
            ; Optional progress handling
            #,(when (syntax->datum #'gen-progress)
